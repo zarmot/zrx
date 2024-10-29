@@ -1,4 +1,4 @@
-export type Act = () => void
+export type Act = () => void | Promise<void>
 export type Cell<T> = {
     use: () => T
     set: (nval: T) => void
@@ -17,6 +17,21 @@ export default function new_scope() {
         fn()
         for (const act of ls_batch_act) {
             act()
+        }
+        f_batch = false
+        ls_batch_act.clear()
+    }
+    const abatch = async (afn: () => Promise<void>, sync = false) => {
+        f_batch = true
+        await afn()
+        if (sync) {
+            for (const act of ls_batch_act) {
+                await act()
+            }
+        } else {
+            for (const act of ls_batch_act) {
+                act()
+            }
         }
         f_batch = false
         ls_batch_act.clear()
@@ -223,6 +238,7 @@ export default function new_scope() {
 
     return {
         batch,
+        abatch,
 
         new_cell,
         new_tree,
