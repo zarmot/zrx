@@ -1,8 +1,10 @@
 export type Act = () => void
-export type Store<T> = { [Key in keyof T]: Store<T[Key]> } & {
+export type Cell<T> = {
     use: () => T
-    set: (nval: T) => T
+    set: (nval: T) => void
+    get: () => T
 }
+export type Node<T> = { [Key in keyof T]: Node<T[Key]> } & Cell<T>
 
 type Sub = Act | [Act, Set<Set<Act>>]
 export default function new_scope() {
@@ -20,7 +22,7 @@ export default function new_scope() {
         ls_batch_act.clear()
     }
 
-    const new_signal = <T>(ival: T): [() => T, (nval: T) => void] => {
+    const new_cell = <T>(ival: T): Cell<T>  => {
         let val = ival
         const st_sub = new Set<Act>()
         const use = () => {
@@ -35,9 +37,6 @@ export default function new_scope() {
             return val
         }
         const set = (nval: T) => {
-            if (val === nval) {
-                return
-            }
             val = nval
             for (const sub of st_sub) {
                 if (f_batch) {
@@ -47,15 +46,23 @@ export default function new_scope() {
                 }
             }
         }
-        return [use, set]
+        const get = () => {
+            return val
+        }
+        return { use, set, get }
     }
 
-    type _Node = {
-        nodes?: Record<string | number | symbol, _Node>
-        st_sub?: Set<Act>
-    }
     type _Path = (string | number | symbol)[]
-    const _sub_node = (node: _Node) => {
+    type _Vnode = {
+        path: _Path
+        proxy?: any
+        nodes?: Record<string | number | symbol, _Vnode>
+        st_sub?: Set<Act>
+        use?: () => any
+        get?: () => any
+        set?: (nval: any) => void
+    }
+    const _sub_node = (node: _Vnode) => {
         if (!node.st_sub) {
             node.st_sub = new Set()
         }
@@ -66,11 +73,7 @@ export default function new_scope() {
             sub_current![1].add(node.st_sub)
         }
     }
-    const _sub = (root: _Node, path: _Path | undefined) => {
-        if (!path) {
-            _sub_node(root)
-            return
-        }
+    const _sub = (root: _Vnode, path: _Path) => {
         let n = root
         for (let i = 0; i < path!.length; i++) {
             const path_cur = path![i];
@@ -79,14 +82,14 @@ export default function new_scope() {
             }
             let nn = n.nodes[path_cur]
             if (!nn) {
-                nn = {}
+                nn = { path: [...n.path, path_cur] }
                 n.nodes[path_cur] = nn
             }
             n = nn
         }
         _sub_node(n)
     }
-    const _dispath_node = (node: _Node) => {
+    const _dispath_node = (node: _Vnode) => {
         if (node.st_sub) {
             for (const sub of node.st_sub) {
                 if (f_batch) {
@@ -97,7 +100,7 @@ export default function new_scope() {
             }
         }
     }
-    const _dispath_all = (node: _Node) => {
+    const _dispath_all = (node: _Vnode) => {
         _dispath_node(node)
         if (node.nodes) {
             for (const [_, value] of Object.entries(node.nodes)) {
@@ -105,8 +108,8 @@ export default function new_scope() {
             }
         }
     }
-    const _dispath = (path: _Path | undefined, pi: number, cur: _Node) => {
-        if (!path || path.length === 0) {
+    const _dispath = (path: _Path, pi: number, cur: _Vnode) => {
+        if (path.length === 0) {
             _dispath_all(cur)
         } else {
             _dispath_node(cur)
@@ -119,89 +122,83 @@ export default function new_scope() {
             }
         }
     }
-    const _new_store_base = (ival: any): [(path?: _Path) => any, (path: _Path | undefined, nval: any) => void] => {
+    const new_tree = <T>(ival: T): Node<T> => {
         let val = ival
-        const root: _Node = {}
-
-        const _get = (path?: _Path) => {
-            if (!path || path.length == 0) {
+        const root: _Vnode = { path: [] }
+        const _get = (path: _Path) => {
+            if (path.length === 0) {
                 return val
             }
             const ix_last = path.length - 1
-            let v = val
+            let v: any = val
             for (let i = 0; i < ix_last; i++) {
                 v = v[path[i]]
             }
             return v[path[ix_last]]
         }
-        const use = (path?: _Path) => {
+        const _use = (path: _Path) => {
             if (sub_current) {
                 _sub(root, path)
             }
             return _get(path)
         }
-        const set = (path: _Path | undefined, nval: any) => {
-            if (!path || path.length === 0) {
+        const _set = (path: _Path, nval: any) => {
+            if (path.length === 0) {
                 val = nval
+            } else {
+                const ix_last = path!.length - 1
+                let v: any = val
+                for (let i = 0; i < ix_last; i++) {
+                    v = v[path![i]]
+                }
+                v[path![ix_last]] = nval
             }
-            const ix_last = path!.length - 1
-            let v = val
-            for (let i = 0; i < ix_last; i++) {
-                v = v[path![i]]
-            }
-            v[path![ix_last]] = nval
             _dispath(path, 0, root)
         }
-        return [use, set]
-    }
-
-    type _Temp = {
-        path: _Path
-        proxy?: any
-        nodes?: Record<string | number | symbol, _Temp>
-        use?: () => any
-        set?: (nval: any) => void
-        ref?: () => any
-    }
-    const new_store = <T>(ival: T): Store<T> => {
-        const temp: _Temp = { path: [] }
-        const [buse, bset] = _new_store_base(ival)
-        const _store_handler: ProxyHandler<_Temp> = {
+        const _store_handler: ProxyHandler<_Vnode> = {
             get: (t, prop) => {
-                if (prop === "use") {
-                    if (!t.use) {
-                        t.use = () => {
-                            return buse(t.path)
+                switch (prop) {
+                    case "get":
+                        if (!t.get) {
+                            t.get = () => {
+                                return _get(t.path)
+                            }
                         }
-                    }
-                    return t.use
-                }
-                if (prop === "set") {
-                    if (!t.set) {
-                        t.set = (nval: any) => {
-                            bset(t.path, nval)
+                        return t.get
+                    case "use":
+                        if (!t.use) {
+                            t.use = () => {
+                                return _use(t.path)
+                            }
                         }
-                    }
-                    return t.set
+                        return t.use
+                    case "set":
+                        if (!t.set) {
+                            t.set = (nval: any) => {
+                                _set(t.path, nval)
+                            }
+                        }
+                        return t.set
+                    default:
+                        if (!t.nodes) {
+                            t.nodes = {}
+                        }
+                        let n = t.nodes[prop]
+                        if (!n) {
+                            n = { path: [...t.path!, prop] }
+                            t.nodes[prop] = n
+                        }
+                        let p = n.proxy
+                        if (!p) {
+                            p = new Proxy(n, _store_handler)
+                            n.proxy = p
+                        }
+                        return p
                 }
-                if (!t.nodes) {
-                    t.nodes = {}
-                }
-                let n = t.nodes[prop]
-                if (!n) {
-                    n = { path: [...t.path!, prop] }
-                    t.nodes[prop] = n
-                }
-                let p = n.proxy
-                if (!p) {
-                    p = new Proxy(n, _store_handler)
-                    n.proxy = p
-                }
-                return p
             },
         }
-        const p = new Proxy(temp, _store_handler)
-        temp.proxy = p
+        const p = new Proxy(root, _store_handler)
+        root.proxy = p
         return p as any
     }
 
@@ -223,22 +220,14 @@ export default function new_scope() {
             }
         }
     }
-    const untrack = <T>(fn: () => T) => {
-        const presub = sub_current
-        sub_current = null
-        const val = fn()
-        sub_current = presub
-        return val
-    }
 
     return {
         batch,
 
-        new_signal,
-        new_store,
+        new_cell,
+        new_tree,
 
         track,
         trackx,
-        untrack,
     }
 }

@@ -1,19 +1,19 @@
-import { new_signal, track, batch } from "./scope.js"
+import { new_cell, track, batch } from "./scope.js"
 
-const [use, set] = new_signal(0)
+const c = new_cell(0)
 
-console.log("[[[init]]]")
+console.log("[init]")
 track(() => {
-    console.log(use())
+    console.log(c.use())
 })
 
-console.log("[[[unbatch]]]")
-set(1)
-set(2)
+console.log("[unbatch]")
+c.set(1)
+c.set(2)
 
-console.log("[[[batch]]]")
+console.log("[batch]")
 batch(() => {
-    set(3)
-    set(4)
-    set(5)
+    c.set(3)
+    c.set(4)
+    c.set(5)
 })
