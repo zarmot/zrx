@@ -1,4 +1,4 @@
-import { new_cell, track, batch } from "./scope.js"
+import { new_cell, track, batch } from "../src/lib.js"
 
 const c = new_cell(0)
 

@@ -1,9 +1,11 @@
-import { new_cell, trackx } from "./scope.js"
+import { new_pub, new_cell } from "../src/lib.js"
+
+const pub = new_pub()
 
 const c = new_cell(0)
 
 console.log("[init]")
-const cancel = trackx(() => {
+pub.track(() => {
     console.log(c.use())
 })
 
@@ -13,6 +15,6 @@ setInterval(() => {
     c.set(c.use() + 1) 
 }, 1000)
 setTimeout(() => {
-    console.log("canceled!")
-    cancel()
+    console.log("cancel!")
+    pub.cancel()
 }, 5500)

@@ -1,4 +1,35 @@
+/*
+
+MIT License
+
+Copyright (c) 2024 Zarmot
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+
 export type Act = () => void | Promise<void>
+export type Pub = {
+    track: (act: Act) => void
+    cancel: () => void
+}
+
 export type Cell<T> = {
     use: () => T
     set: (nval: T) => void
@@ -11,6 +42,35 @@ export default function new_scope() {
     let f_batch = false
     let ls_batch_act = new Set<Act>()
     let sub_current: Sub | null = null
+
+    const track = (act: Act) => {
+        const presub = sub_current
+        sub_current = act
+        act()
+        sub_current = presub
+    }
+
+    class _Pub {
+        private st_act: Set<Act> = new Set()
+        private st_sub: Set<Set<Act>> = new Set()
+        public track(act: Act) {
+            const presub = sub_current
+            this.st_act.add(act)
+            sub_current = [act, this.st_sub]
+            act()
+            sub_current = presub
+        }
+        public cancel() {
+            for (const sub of this.st_sub) {
+                for (const act of this.st_act) {
+                    sub.delete(act)
+                }
+            }
+        }
+    }
+    const new_pub = (): Pub => {
+        return new _Pub()
+    }
 
     const batch = (fn: () => void) => {
         f_batch = true
@@ -170,7 +230,7 @@ export default function new_scope() {
             }
             _dispath(path, 0, root)
         }
-        const _store_handler: ProxyHandler<_Vnode> = {
+        const _tree_handler: ProxyHandler<_Vnode> = {
             get: (t, prop) => {
                 switch (prop) {
                     case "get":
@@ -205,45 +265,26 @@ export default function new_scope() {
                         }
                         let p = n.proxy
                         if (!p) {
-                            p = new Proxy(n, _store_handler)
+                            p = new Proxy(n, _tree_handler)
                             n.proxy = p
                         }
                         return p
                 }
             },
         }
-        const p = new Proxy(root, _store_handler)
+        const p = new Proxy(root, _tree_handler)
         root.proxy = p
         return p as any
     }
 
-    const track = (act: Act) => {
-        const presub = sub_current
-        sub_current = act
-        act()
-        sub_current = presub
-    }
-    const trackx = (act: Act) => {
-        const st_pub = new Set<Set<Act>>()
-        const presub = sub_current
-        sub_current = [act, st_pub]
-        act()
-        sub_current = presub
-        return () => {
-            for (const pub of st_pub) {
-                pub.delete(act)
-            }
-        }
-    }
-
     return {
+        track,
+        new_pub,
+
         batch,
         abatch,
 
         new_cell,
         new_tree,
-
-        track,
-        trackx,
     }
 }

@@ -1,4 +1,4 @@
-import { new_tree, track } from "./scope.js"
+import { new_tree, track } from "../src/lib.js"
 
 const t = new_tree({
     x0: {
