@@ -202,24 +202,21 @@ export default function new_scope() {
             }
             return v[path[ix_last]]
         }
-        const _use = (path: _Path) => {
-            if (sub_current) {
-                let n = root
-                for (let i = 0; i < path!.length; i++) {
-                    const path_cur = path![i];
-                    if (!n.nodes) {
-                        n.nodes = {}
-                    }
-                    let nn = n.nodes[path_cur]
-                    if (!nn) {
-                        nn = new _Vnode([...n.path, path_cur])
-                        n.nodes[path_cur] = nn
-                    }
-                    n = nn
+        const _sub = (path: _Path) => {
+            let n = root
+            for (let i = 0; i < path!.length; i++) {
+                const path_cur = path![i];
+                if (!n.nodes) {
+                    n.nodes = {}
                 }
-                n.sub()
+                let nn = n.nodes[path_cur]
+                if (!nn) {
+                    nn = new _Vnode([...n.path, path_cur])
+                    n.nodes[path_cur] = nn
+                }
+                n = nn
             }
-            return _get(path)
+            n.sub()
         }
         const _set = (path: _Path, nval: any) => {
             if (path.length === 0) {
@@ -245,6 +242,7 @@ export default function new_scope() {
                                 } else {
                                     const v = _get(t.path)
                                     t.cache = v
+                                    t.cached = true
                                     return v
                                 }
                             }
@@ -253,7 +251,17 @@ export default function new_scope() {
                     case "use":
                         if (!t.use) {
                             t.use = () => {
-                                return _use(t.path)
+                                if (sub_current) {
+                                    _sub(t.path)
+                                }
+                                if (t.cached) {
+                                    return t.cache
+                                } else {
+                                    const v = _get(t.path)
+                                    t.cache = v
+                                    t.cached = true
+                                    return v
+                                }
                             }
                         }
                         return t.use
