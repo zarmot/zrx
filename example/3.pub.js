@@ -1,4 +1,4 @@
-import { new_pub, new_cell } from "../src/lib.js"
+import { new_pub, new_cell } from "../lib/main.js"
 
 const pub = new_pub()
 

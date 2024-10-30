@@ -5,9 +5,8 @@
             "type": "node",
             "request": "launch",
             "name": "Launch",
-            "console": "internalConsole",
+            "console": "externalTerminal",
             "program": "${workspaceFolder}/${relativeFile}",
-            "outFiles": ["${workspaceFolder}/.built/**/*.js"],
             "args": [
                 "${relativeFile}",
             ],

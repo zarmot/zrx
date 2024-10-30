@@ -12,7 +12,7 @@
     "declarationMap": true,
     "sourceMap": true,
 
-    "rootDir": ".",
-    "outDir": ".built",
+    "rootDir": "src",
+    "outDir": "lib",
   }
 }

@@ -1,4 +1,4 @@
-import { new_tree, track } from "../src/lib.js"
+import { new_tree, track } from "../lib/main.js"
 
 const t = new_tree({
     x0: {
@@ -17,12 +17,12 @@ track(() => {
 for (let x = 0; x < 2; x++) {
     track(() => { 
         //t.x0.use()
-        console.log(`x${x}: ${JSON.stringify((t as any)[`x${x}`].use())}`)
+        console.log(`x${x}: ${JSON.stringify((t)[`x${x}`].use())}`)
     })
     for (let y = 0; y < 2; y++) {
         track(() => { 
             //t.x0.y0.use()
-            console.log(`x${x}y${y}: ${JSON.stringify((t as any)[`x${x}`][`y${y}`].use())}`) 
+            console.log(`x${x}y${y}: ${JSON.stringify((t)[`x${x}`][`y${y}`].use())}`) 
         })
     }
 }
