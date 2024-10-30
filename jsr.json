@@ -1,0 +1,8 @@
+{
+    "name": "@zarmot/rx",
+    "version": "1.1000.1",
+    "exports": {
+        ".": "./src/main.ts",
+        "./core": "./src/core.ts"
+    }
+}

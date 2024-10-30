@@ -36,14 +36,22 @@ export type Cell<T> = {
     get: () => T
 }
 export type Node<T> = { [Key in keyof T]: Node<T[Key]> } & Cell<T>
+export type Scope = {
+    track: (act: Act) => void
+    new_pub: () => Pub
+    batch: (fn: () => void) => void
+    abatch: (afn: () => Promise<void>, sync?: boolean) => Promise<void>
+    new_cell: <T>(ival: T) => Cell<T>
+    new_tree: <T>(ival: T) => Node<T>
+}
 
 type Sub = Act | [Act, Set<Set<Act>>]
-export default function new_scope() {
+export default function new_scope(): Scope {
     let f_batch = false
     let ls_batch_act = new Set<Act>()
     let sub_current: Sub | null = null
 
-    const track = (act: Act) => {
+    const track = (act: Act): void => {
         const presub = sub_current
         sub_current = act
         act()
@@ -72,7 +80,7 @@ export default function new_scope() {
         return new _Pub()
     }
 
-    const batch = (fn: () => void) => {
+    const batch = (fn: () => void): void => {
         f_batch = true
         fn()
         for (const act of ls_batch_act) {
@@ -81,7 +89,7 @@ export default function new_scope() {
         f_batch = false
         ls_batch_act.clear()
     }
-    const abatch = async (afn: () => Promise<void>, sync = false) => {
+    const abatch = async (afn: () => Promise<void>, sync = false): Promise<void> => {
         f_batch = true
         await afn()
         if (sync) {

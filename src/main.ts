@@ -24,9 +24,10 @@ SOFTWARE.
 
 */
 
-import new_scope from "./core.js"
+import new_scope, { Scope } from "./core.js"
+export { Act, Pub, Cell, Node, Scope } from "./core.js"
 
-const scope = new_scope()
+const scope: Scope = new_scope()
 
 export const track = scope.track
 export const new_pub = scope.new_pub
