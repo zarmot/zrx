@@ -25,7 +25,7 @@ SOFTWARE.
 */
 
 import new_scope, { Scope } from "./core.js"
-export { Act, Pub, Cell, Node, Scope } from "./core.js"
+export type { Act, Pub, Cell, Node, Scope } from "./core.js"
 
 const scope: Scope = new_scope()
 
