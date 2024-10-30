@@ -132,6 +132,8 @@ export default function new_scope() {
         constructor(
             public path: _Path,
         ) { }
+        cached = false
+        cache?: any
         proxy?: any
         nodes?: Record<string | number | symbol, _Vnode>
         st_sub?: Set<Act>
@@ -163,6 +165,7 @@ export default function new_scope() {
             }
         }
         dispatch_all() {
+            this.cached = false
             this.dispatch()
             if (this.nodes) {
                 for (const [_, value] of Object.entries(this.nodes)) {
@@ -237,7 +240,13 @@ export default function new_scope() {
                     case "get":
                         if (!t.get) {
                             t.get = () => {
-                                return _get(t.path)
+                                if (t.cached) {
+                                    return t.cache
+                                } else {
+                                    const v = _get(t.path)
+                                    t.cache = v
+                                    return v
+                                }
                             }
                         }
                         return t.get
