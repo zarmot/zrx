@@ -97,7 +97,7 @@ export default function new_scope() {
         ls_batch_act.clear()
     }
 
-    const new_cell = <T>(ival: T): Cell<T>  => {
+    const new_cell = <T>(ival: T): Cell<T> => {
         let val = ival
         const st_sub = new Set<Act>()
         const use = () => {
@@ -128,78 +128,66 @@ export default function new_scope() {
     }
 
     type _Path = (string | number | symbol)[]
-    type _Vnode = {
-        path: _Path
+    class _Vnode {
+        constructor(
+            public path: _Path,
+        ) { }
         proxy?: any
         nodes?: Record<string | number | symbol, _Vnode>
         st_sub?: Set<Act>
-        use?: () => any
         get?: () => any
+        use?: () => any
         set?: (nval: any) => void
-    }
-    const _sub_node = (node: _Vnode) => {
-        if (!node.st_sub) {
-            node.st_sub = new Set()
-        }
-        if (typeof sub_current === "function") {
-            node.st_sub.add(sub_current)
-        } else {
-            node.st_sub.add(sub_current![0])
-            sub_current![1].add(node.st_sub)
-        }
-    }
-    const _sub = (root: _Vnode, path: _Path) => {
-        let n = root
-        for (let i = 0; i < path!.length; i++) {
-            const path_cur = path![i];
-            if (!n.nodes) {
-                n.nodes = {}
+
+        sub() {
+            if (!this.st_sub) {
+                this.st_sub = new Set()
             }
-            let nn = n.nodes[path_cur]
-            if (!nn) {
-                nn = { path: [...n.path, path_cur] }
-                n.nodes[path_cur] = nn
+            if (typeof sub_current === "function") {
+                this.st_sub.add(sub_current)
+            } else {
+                this.st_sub.add(sub_current![0])
+                sub_current![1].add(this.st_sub)
             }
-            n = nn
         }
-        _sub_node(n)
-    }
-    const _dispath_node = (node: _Vnode) => {
-        if (node.st_sub) {
-            for (const sub of node.st_sub) {
-                if (f_batch) {
-                    ls_batch_act.add(sub)
-                } else {
-                    sub()
+
+        dispatch() {
+            if (this.st_sub) {
+                for (const sub of this.st_sub) {
+                    if (f_batch) {
+                        ls_batch_act.add(sub)
+                    } else {
+                        sub()
+                    }
                 }
             }
         }
-    }
-    const _dispath_all = (node: _Vnode) => {
-        _dispath_node(node)
-        if (node.nodes) {
-            for (const [_, value] of Object.entries(node.nodes)) {
-                _dispath_all(value)
+        dispatch_all() {
+            this.dispatch()
+            if (this.nodes) {
+                for (const [_, value] of Object.entries(this.nodes)) {
+                    value.dispatch_all()
+                }
             }
         }
-    }
-    const _dispath = (path: _Path, pi: number, cur: _Vnode) => {
-        if (path.length === 0) {
-            _dispath_all(cur)
-        } else {
-            _dispath_node(cur)
-            const path_cur = path[pi]
-            const node_nxt = cur.nodes?.[path_cur]
-            if (pi == path.length - 1) {
-                node_nxt && _dispath_all(node_nxt)
+        dispath_path(path: _Path, pi: number) {
+            if (path.length === 0) {
+                this.dispatch_all()
             } else {
-                node_nxt && _dispath(path, pi + 1, node_nxt)
+                this.dispatch()
+                const path_cur = path[pi]
+                const node_nxt = this.nodes?.[path_cur]
+                if (pi == path.length - 1) {
+                    node_nxt && node_nxt.dispatch_all()
+                } else {
+                    node_nxt && node_nxt.dispath_path(path, pi + 1)
+                }
             }
         }
     }
     const new_tree = <T>(ival: T): Node<T> => {
         let val = ival
-        const root: _Vnode = { path: [] }
+        const root: _Vnode = new _Vnode([])
         const _get = (path: _Path) => {
             if (path.length === 0) {
                 return val
@@ -213,7 +201,20 @@ export default function new_scope() {
         }
         const _use = (path: _Path) => {
             if (sub_current) {
-                _sub(root, path)
+                let n = root
+                for (let i = 0; i < path!.length; i++) {
+                    const path_cur = path![i];
+                    if (!n.nodes) {
+                        n.nodes = {}
+                    }
+                    let nn = n.nodes[path_cur]
+                    if (!nn) {
+                        nn = new _Vnode([...n.path, path_cur])
+                        n.nodes[path_cur] = nn
+                    }
+                    n = nn
+                }
+                n.sub()
             }
             return _get(path)
         }
@@ -228,9 +229,9 @@ export default function new_scope() {
                 }
                 v[path![ix_last]] = nval
             }
-            _dispath(path, 0, root)
+            root.dispath_path(path, 0)
         }
-        const _tree_handler: ProxyHandler<_Vnode> = {
+        const _node_handler: ProxyHandler<_Vnode> = {
             get: (t, prop) => {
                 switch (prop) {
                     case "get":
@@ -260,19 +261,19 @@ export default function new_scope() {
                         }
                         let n = t.nodes[prop]
                         if (!n) {
-                            n = { path: [...t.path!, prop] }
+                            n = new _Vnode([...t.path!, prop])
                             t.nodes[prop] = n
                         }
                         let p = n.proxy
                         if (!p) {
-                            p = new Proxy(n, _tree_handler)
+                            p = new Proxy(n, _node_handler)
                             n.proxy = p
                         }
                         return p
                 }
             },
         }
-        const p = new Proxy(root, _tree_handler)
+        const p = new Proxy(root, _node_handler)
         root.proxy = p
         return p as any
     }
